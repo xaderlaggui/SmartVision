@@ -142,6 +142,12 @@ const styles = StyleSheet.create({
     borderColor: 'lightgray',
     borderWidth: 1,
     borderRadius: 50,
+    shadowColor: '#000', // Color of the shadow
+    shadowOffset: { width: 0, height: 2 }, // Shadow offset
+    shadowOpacity: 0.25, // Opacity of the shadow
+    shadowRadius: 3.5, // Blur radius of the shadow
+    // Android shadow property
+    elevation: 5, // Elevation for Android devices
   },
   button: {
     backgroundColor: 'blue',
@@ -149,6 +155,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     width: 250,
     alignItems: 'center',
+    shadowColor: '#000', // Color of the shadow
+    shadowOffset: { width: 0, height: 2 }, // Shadow offset
+    shadowOpacity: 0.25, // Opacity of the shadow
+    shadowRadius: 3.5, // Blur radius of the shadow
+    // Android shadow property
+    elevation: 5, // Elevation for Android devices
+    
   },
   title: {
     fontSize: 30,
@@ -165,7 +178,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   linkText: {
-    color: 'black',
+    color: 'red',
     marginTop: 15,
   },
   homeButton: {
@@ -175,6 +188,12 @@ const styles = StyleSheet.create({
     width: 150,
     alignItems: 'center',
     marginTop: 80,
+    shadowColor: '#000', // Color of the shadow
+    shadowOffset: { width: 0, height: 2 }, // Shadow offset
+    shadowOpacity: 0.25, // Opacity of the shadow
+    shadowRadius: 3.5, // Blur radius of the shadow
+    // Android shadow property
+    elevation: 5, // Elevation for Android devices
   },
   homeButtonText: {
     color: 'white',
@@ -187,6 +206,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     alignItems: 'center',
     marginBottom: -150,
+    shadowColor: '#000', // Color of the shadow
+    shadowOffset: { width: 0, height: 2 }, // Shadow offset
+    shadowOpacity: 0.25, // Opacity of the shadow
+    shadowRadius: 3.5, // Blur radius of the shadow
+    // Android shadow property
+    elevation: 5, // Elevation for Android devices
   },
   personalImage: {
     width: '50%',

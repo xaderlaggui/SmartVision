@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'flex-start',
     alignItems: 'center',
-    height: '100%', // Adjusting to full height
+    height: 300, // Adjusting to full height
   },
   container: {
     width: 350,
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 25,
     position: 'absolute',
-    bottom: 160,
+    bottom: -340,
     borderTopWidth: 2,
     borderTopColor: 'black',
     backgroundColor: 'white',

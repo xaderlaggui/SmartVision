@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Modal } from 'react-native';
+import { supabase } from '../../lib/supabase'; // Supabase client
 
 interface File {
   id: string;
@@ -15,29 +16,41 @@ interface Props {
 }
 
 const Files: React.FC<Props> = ({ setCurrentPage }) => {
-  const [files, setFiles] = useState<File[]>([
-    { id: '1', name: 'Image 1', size: '1.2MB', type: 'PNG', date: '2024-11-10', translation: 'Translation for Image 1' },
-    { id: '2', name: 'Photo 1', size: '500KB', type: 'JPEG', date: '2024-11-09', translation: 'Translation for Photo 1' },
-    { id: '3', name: 'Image 2', size: '200KB', type: 'PNG', date: '2024-11-08', translation: 'Translation for Image 2' },
-    { id: '4', name: 'Photo 2', size: '1.5MB', type: 'JPEG', date: '2024-11-07', translation: 'Translation for Photo 2' },
-    { id: '5', name: 'Image 3', size: '2.3MB', type: 'PNG', date: '2024-11-06', translation: 'Translation for Image 3' },
-  ]);
-
+  const [files, setFiles] = useState<File[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTranslation, setSelectedTranslation] = useState<string>('');
 
-  // Handle File Management
-  const handleFileManagement = () => {
-    setCurrentPage('files'); // This can be used to switch pages if necessary.
-  };
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('files')
+          .select('id, name, size, type, date, translation');
 
-  // Open modal with translation when file is clicked
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        if (data) {
+          console.log('Files fetched:', data); // Debugging
+          setFiles(data);
+        } else {
+          console.log('No files found.');
+          setFiles([]);
+        }
+      } catch (error) {
+        console.error('Error fetching files:', error);
+      }
+    };
+
+    fetchFiles();
+  }, []);
+
   const handleFileClick = (translation: string) => {
     setSelectedTranslation(translation);
     setModalVisible(true);
   };
 
-  // Render each file item with individual boxes
   const renderFileItem = ({ item }: { item: File }) => (
     <TouchableOpacity style={styles.fileItem} onPress={() => handleFileClick(item.translation)}>
       <Text style={styles.fileText}>{item.name}</Text>
@@ -123,7 +136,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   container: {
-    height: 610,
+    height: 606,
     width: 350,
     padding: 25,
     backgroundColor: 'white',

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Modal, TextInput, Button } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase'; // Supabase client
 
-// Interface for Class data
 interface Class {
   id: string;
   class_name: string;
@@ -10,7 +10,6 @@ interface Class {
   created_at: string;
 }
 
-// Interface for Student data
 interface Student {
   id: string;
   username: string;
@@ -21,29 +20,82 @@ interface Props {
 }
 
 const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
-  const [classes, setClasses] = useState<Class[]>([]); // List of classes
-  const [students, setStudents] = useState<Student[]>([]); // List of students enrolled in selected class
-  const [modalVisible, setModalVisible] = useState(false); // Modal visibility state
-  const [selectedClass, setSelectedClass] = useState<Class | null>(null); // Selected class for viewing students
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [feedback, setFeedback] = useState<string>('');
 
-  // Fetch classes from Supabase
   useEffect(() => {
-    const fetchClasses = async () => {
+    const fetchUserData = async () => {
       try {
-        const { data, error } = await supabase.from('classes').select('*');
-        if (error) throw new Error(error.message);
-        setClasses(data || []);
+        const storedUser = await AsyncStorage.getItem('user');
+        const storedUserId = await AsyncStorage.getItem('user_id');
+        if (storedUser) {
+          setUsername(storedUser);
+        }
+        if (storedUserId) {
+          setUserId(storedUserId);
+        }
       } catch (error) {
-        console.error('Error fetching classes:', error);
+        console.error('Error fetching user data:', error);
       }
     };
-    fetchClasses();
+    fetchUserData();
   }, []);
 
-  // Fetch students based on class ID
+  useEffect(() => {
+    const fetchClasses = async () => {
+      if (username) {
+        try {
+          console.log('Fetching user ID for username:', username); // Debugging
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .single();
+  
+          if (userError) {
+            throw new Error(userError.message);
+          }
+  
+          if (userData) {
+            console.log('User ID fetched:', userData.id); // Debugging
+            const { data, error } = await supabase
+              .from('classes')
+              .select('id, class_name, class_code, created_at')
+              .eq('teacher_id', userData.id);
+  
+            if (error) {
+              throw new Error(error.message);
+            }
+  
+            if (data && data.length > 0) {
+              console.log('Classes fetched:', data); // Debugging
+              setClasses(data);
+            } else {
+              console.log('No classes found for this user.');
+              setClasses([]);
+            }
+          } else {
+            console.log('User ID not found.');
+            setClasses([]);
+          }
+        } catch (error) {
+          console.error('Error fetching classes:', error);
+        }
+      }
+    };
+  
+    fetchClasses();
+  }, [username]);
+
   const fetchStudents = async (classId: string) => {
     try {
-      // First, fetch the student_class table to get student IDs for the selected class
       const { data: studentClassData, error: studentClassError } = await supabase
         .from('student_class')
         .select('student_id')
@@ -51,34 +103,71 @@ const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
 
       if (studentClassError) throw new Error(studentClassError.message);
 
-      // Extract student IDs from student_class data
       const studentIds = studentClassData?.map((item: { student_id: string }) => item.student_id);
 
       if (studentIds && studentIds.length > 0) {
-        // Now fetch the students from the users table using these student IDs
         const { data, error } = await supabase
           .from('users')
-          .select('id, username') // Only fetch student name and id
+          .select('id, username')
           .in('id', studentIds);
 
         if (error) throw new Error(error.message);
         setStudents(data || []);
       } else {
-        setStudents([]); // No students enrolled, set empty list
+        setStudents([]);
       }
     } catch (error) {
       console.error('Error fetching students:', error);
     }
   };
 
-  // Handle click on a class to open its students' list
   const handleClassClick = (classItem: Class) => {
     setSelectedClass(classItem);
-    fetchStudents(classItem.id); // Fetch students based on the selected class
+    fetchStudents(classItem.id);
     setModalVisible(true);
   };
 
-  // Render class item in FlatList
+  const handleStudentClick = (student: Student) => {
+    setSelectedStudent(student);
+    setFeedbackModalVisible(true);
+  };
+
+  const handleFeedbackSubmit = async () => {
+    if (!selectedStudent || !selectedClass || !feedback) {
+      alert('Please fill in all fields before submitting.');
+      return;
+    }
+  
+    try {
+      // Construct the feedback data object (no `id` field)
+      const feedbackData = {
+        student_id: selectedStudent.id,
+        feedback_text: feedback,
+        class_id: selectedClass.id,
+      };
+  
+      // Insert the feedback into the Supabase `feedback` table
+      const { data, error } = await supabase
+        .from('feedback')
+        .insert([feedbackData]);
+  
+      if (error) {
+        throw new Error(error.message);
+      }
+  
+      console.log('Feedback successfully submitted:', data);
+      alert('Feedback submitted successfully');
+  
+      // Reset feedback and close modal
+      setFeedback('');
+      setFeedbackModalVisible(false);
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      alert('Failed to submit feedback. Please try again.');
+    }
+  };
+  
+
   const renderClassItem = ({ item }: { item: Class }) => (
     <TouchableOpacity style={styles.classItem} onPress={() => handleClassClick(item)}>
       <Text style={styles.classText}>{item.class_name}</Text>
@@ -87,27 +176,29 @@ const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
     </TouchableOpacity>
   );
 
-  // Render student name in Modal
   const renderStudentItem = ({ item }: { item: Student }) => (
-    <View style={styles.studentItem}>
+    <TouchableOpacity style={styles.studentItem} onPress={() => handleStudentClick(item)}>
       <Text style={styles.studentText}>{item.username}</Text>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.mainContainer}>
       <View style={styles.container}>
         <Text style={styles.title}>Classes</Text>
-        {/* FlatList for displaying class list */}
-        <FlatList
-          data={classes}
-          renderItem={renderClassItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-        />
+        {username && <Text style={styles.welcomeText}>Welcome, {username}!</Text>}
+        {classes.length === 0 ? (
+          <Text style={styles.noClassesText}>No classes available</Text>
+        ) : (
+          <FlatList
+            data={classes}
+            renderItem={renderClassItem}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
       </View>
 
-      {/* Bottom Navigation Buttons */}
       <View style={styles.bottomButtonContainer}>
         <TouchableOpacity style={styles.button} onPress={() => setCurrentPage('dashboard')}>
           <Image source={require('../../assets/images/home.png')} style={styles.buttonImage} />
@@ -123,7 +214,7 @@ const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Modal to display students' names */}
+      {/* Modal for class details */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -149,12 +240,46 @@ const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Modal for feedback */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={feedbackModalVisible}
+        onRequestClose={() => setFeedbackModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Feedback/Comment for {selectedStudent?.username}</Text>
+            <TextInput
+              style={styles.feedbackInput}
+              placeholder="Enter your feedback here..."
+              value={feedback}
+              onChangeText={setFeedback}
+            />
+            <Button title="Submit" onPress={handleFeedbackSubmit} />
+            <TouchableOpacity style={styles.closeButton} onPress={() => setFeedbackModalVisible(false)}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
-// Styles for the component
+// Styles omitted for brevity; add `feedbackInput` style to your existing styles.
+
 const styles = StyleSheet.create({
+  feedbackInput: {
+    width: '100%',
+    height: 100,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 10,
+  },
   mainContainer: {
     flex: 1,
     justifyContent: 'flex-start',
@@ -162,7 +287,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   container: {
-    height: 610,
+    height: 606,
     width: 350,
     padding: 25,
     backgroundColor: 'white',
@@ -186,6 +311,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 10,
     borderTopRightRadius: 10,
   },
+  welcomeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
   classItem: {
     backgroundColor: '#e0e0e0',
     padding: 15,
@@ -196,6 +327,12 @@ const styles = StyleSheet.create({
   classText: {
     fontSize: 16,
     marginBottom: 5,
+  },
+  noClassesText: {
+    fontSize: 16,
+    color: 'gray',
+    textAlign: 'center',
+    marginTop: 20,
   },
   bottomButtonContainer: {
     flexDirection: 'row',
@@ -232,7 +369,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Slightly darker overlay for better contrast
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   modalContent: {
     backgroundColor: 'white',
@@ -246,34 +383,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 15,
   },
-  studentItem: {
-    backgroundColor: '#f9f9f9',
-    padding: 12,
+  noStudentsText: {
+    fontSize: 16,
+    color: 'gray',
     marginBottom: 10,
-    borderRadius: 5,
+  },
+  studentItem: {
+    paddingVertical: 8,
     width: '100%',
+    alignItems: 'center',
   },
   studentText: {
     fontSize: 16,
-    marginBottom: 5,
   },
   closeButton: {
-    backgroundColor: 'black',
-    padding: 12,
+    marginTop: 10,
+    backgroundColor: 'blue',
+    padding: 10,
     borderRadius: 5,
-    marginTop: 20,
-    width: '100%',
-    alignItems: 'center',
   },
   closeButtonText: {
     color: 'white',
     fontSize: 16,
-  },
-  noStudentsText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'gray',
-    marginTop: 20,
   },
 });
 

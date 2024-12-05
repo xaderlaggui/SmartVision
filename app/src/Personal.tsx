@@ -1,62 +1,99 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Image, TouchableOpacity, Text, StyleSheet, Animated } from 'react-native';
+import { View, Image, TouchableOpacity, Text, StyleSheet, Animated, Linking } from 'react-native';
+import Icon from 'react-native-vector-icons/FontAwesome'; // Make sure you install react-native-vector-icons
 
 interface Props {
-  setCurrentPage: (page: 'home' | 'teacher' | 'personal' | 'login-student' | 'signup') => void; // Added 'signup' option
+  setCurrentPage: (page: 'home' | 'teacher' | 'personal' | 'login-student' | 'signup') => void;
 }
 
 const PersonalPage: React.FC<Props> = ({ setCurrentPage }) => {
-  // Initialize animated value for slide animations
-  const slideAnim = useRef(new Animated.Value(5000)).current; // Start below for slide-up effect
+  const slideAnim = useRef(new Animated.Value(5000)).current;
+  const footerAnim = useRef(new Animated.Value(0)).current; // Set initial opacity to 0 for fade-in
 
   useEffect(() => {
-    // Slide up animation on mount
     Animated.spring(slideAnim, {
-      toValue: 0,
+      toValue: 50,
       useNativeDriver: true,
       friction: 8,
     }).start();
-  }, [slideAnim]);
+
+    // Trigger the fade-in animation for the footer
+    Animated.timing(footerAnim, {
+      toValue: 1,
+      duration: 500, // Adjust duration as needed
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, footerAnim]);
+
+  // Function to handle the fade-out animation before navigating away
+  const fadeOutFooter = (callback: () => void) => {
+    Animated.timing(footerAnim, {
+      toValue: 0,
+      duration: 300, // Adjust the duration as needed for the fade-out effect
+      useNativeDriver: true,
+    }).start(callback);
+  };
 
   const handleBackToHome = () => {
-    // Slide down animation before navigating back to home
-    Animated.timing(slideAnim, {
-      toValue: 300, // Slide down to original position
-      duration: 400,
-      useNativeDriver: true,
-    }).start(() => {
-      // After slide-down animation completes, navigate back to home
-      setCurrentPage('home');
+    fadeOutFooter(() => {
+      Animated.timing(slideAnim, {
+        toValue: 300,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        setCurrentPage('home');
+      });
     });
   };
 
   const handleLoginPress = () => {
-    setCurrentPage('login-student'); // Navigate to the Login page
+    fadeOutFooter(() => {
+      setCurrentPage('login-student');
+    });
   };
 
   const handleSignupPress = () => {
-    setCurrentPage('signup'); // Navigate to the Signup page
+    fadeOutFooter(() => {
+      setCurrentPage('signup');
+    });
+  };
+
+  const handleOpenWikipedia = () => {
+    Linking.openURL('https://en.wikipedia.org/wiki/Braille');
+  };
+
+  const handleOpenBritannica = () => {
+    Linking.openURL('https://www.britannica.com/topic/Braille-writing-system');
   };
 
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
-      <View style={styles.innerContainer}>
+    <View style={styles.container}>
+      <Animated.View style={[styles.innerContainer, { transform: [{ translateY: slideAnim }] }]} >
         <View style={styles.imageContainer}>
-          {/* Background image */}
           <Image source={require('../../assets/images/student-use.png')} style={styles.personalImage} />
-          {/* Overlay image */}
           <Image source={require('../../assets/images/personal-photo.jpg')} style={styles.overlayImage} />
         </View>
 
-        {/* Authentication buttons */}
         <TouchableOpacity style={styles.authButton} onPress={handleLoginPress}>
           <Text style={styles.authButtonText}>Login</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.authButton} onPress={handleSignupPress}>
           <Text style={styles.authButtonText}>Sign Up</Text>
         </TouchableOpacity>
-      </View>
-    </Animated.View>
+      </Animated.View>
+
+      <Animated.View style={[styles.footerContainer, { opacity: footerAnim }]}>
+        <TouchableOpacity style={styles.linkButton} onPress={handleOpenWikipedia}>
+          <Image source={require('../../assets/images/wiki.png')} style={styles.linkImage} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkButton} onPress={handleOpenBritannica}>
+          <Image source={require('../../assets/images/britannica.png')} style={styles.linkImage} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkButton} onPress={handleBackToHome}>
+          <Icon name="arrow-left" size={34} color="black" />
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 };
 
@@ -106,13 +143,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 5,
     marginBottom: 10,
-    width: '80%',
+    width: 300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
   authButtonText: {
     color: 'black',
     fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  footerContainer: {
+    position: 'absolute',
+    bottom: -70,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    borderRadius: 50,
+  },
+  linkButton: {
+    width: 60,
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 50,
+    marginHorizontal: 10,
+    backgroundColor: '#0471ff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  linkImage: {
+    width: 50,
+    height: 40,
+    resizeMode: 'contain',
   },
 });
 
