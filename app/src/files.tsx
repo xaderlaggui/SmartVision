@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Modal } from 'react-native';
 import { supabase } from '../../lib/supabase'; // Supabase client
+import { Audio } from 'expo-av'; // Import Audio from expo-av
 
 interface File {
   id: string;
-  name: string;
-  size: string;
-  type: 'PNG' | 'JPEG'; // Restricting file type to PNG or JPEG
-  date: string;
-  translation: string; // Added translation field to each file
+  class_name: string;
+  class_code: string;
+}
+
+interface Feedback {
+  id: string;
+  feedback_text: string;
+  feedback_audio: string; // Assuming this is a URL or path to an audio file
+  class_id: string; // Ensure this matches the ID type in your feedback table
 }
 
 interface Props {
@@ -17,15 +22,17 @@ interface Props {
 
 const Files: React.FC<Props> = ({ setCurrentPage }) => {
   const [files, setFiles] = useState<File[]>([]);
+  const [selectedClass, setSelectedClass] = useState<File | null>(null);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedTranslation, setSelectedTranslation] = useState<string>('');
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
 
   useEffect(() => {
     const fetchFiles = async () => {
       try {
         const { data, error } = await supabase
-          .from('files')
-          .select('id, name, size, type, date, translation');
+          .from('classes')
+          .select('id, class_name, class_code');
 
         if (error) {
           throw new Error(error.message);
@@ -45,19 +52,98 @@ const Files: React.FC<Props> = ({ setCurrentPage }) => {
 
     fetchFiles();
   }, []);
+  
 
-  const handleFileClick = (translation: string) => {
-    setSelectedTranslation(translation);
-    setModalVisible(true);
+  const fetchFeedback = async (classId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('id, feedback_text, feedback_audio')
+        .eq('class_id', classId); // Ensure this matches the column name in your feedback table
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data) {
+        console.log('Feedback fetched:', data); // Debugging
+        setFeedback(data);
+        setModalVisible(true); // Show modal when feedback is loaded
+      } else {
+        console.log('No feedback found.');
+        setFeedback([]);
+      }
+    } catch (error) {
+      console.error('Error fetching feedback:', error);
+    }
+  };
+
+  const playAudio = async (audioUri: string) => {
+    if (sound) {
+      await sound.unloadAsync();
+    }
+    const { sound: newSound } = await Audio.Sound.createAsync(
+      { uri: audioUri },
+      { shouldPlay: true }
+    );
+    setSound(newSound);
   };
 
   const renderFileItem = ({ item }: { item: File }) => (
-    <TouchableOpacity style={styles.fileItem} onPress={() => handleFileClick(item.translation)}>
-      <Text style={styles.fileText}>{item.name}</Text>
-      <Text style={styles.fileText}>{item.type} - {item.size}</Text>
-      <Text style={styles.fileText}>Last Modified: {item.date}</Text>
+    <TouchableOpacity
+      style={styles.fileItem}
+      onPress={() => {
+        setSelectedClass(item);
+        fetchFeedback(item.id); // Use item.id for class_id connection
+      }}
+    >
+      <Text style={styles.fileText}>{item.class_name}</Text>
+      <Text style={styles.fileText}>{item.class_code}</Text>
     </TouchableOpacity>
   );
+
+  const renderFeedbackItem = ({ item }: { item: Feedback }) => (
+  <View style={styles.feedbackItem}>
+    <Text style={styles.feedbackText}>{item.feedback_text}</Text>
+    {item.feedback_audio && (
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            const { data, error } = await supabase.storage
+              .from('feedback_audio')
+              .getPublicUrl(item.feedback_audio);
+
+            if (error) {
+              throw new Error(error.message);
+            }
+
+            if (data && data.publicUrl) {
+              const audioUrl = data.publicUrl;
+              console.log('Playing audio:', audioUrl);
+              playAudio(audioUrl);
+            } else {
+              console.log('No public URL returned.');
+            }
+          } catch (error) {
+            console.error('Error fetching audio URL:', error);
+          }
+        }}
+      >
+        <Text style={styles.audioText}>Play Audio Feedback</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
+  const pauseAudio = async () => {
+    if (sound) {
+      try {
+        await sound.pauseAsync();
+      } catch (error) {
+        console.error('Error pausing audio:', error);
+      }
+    }
+  };
 
   return (
     <View style={styles.mainContainer}>
@@ -69,8 +155,33 @@ const Files: React.FC<Props> = ({ setCurrentPage }) => {
           data={files}
           renderItem={renderFileItem}
           keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false} // Optional: hides the vertical scroll indicator
+          showsVerticalScrollIndicator={false}
         />
+
+        {/* Modal for feedback */}
+        <Modal
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => setModalVisible(false)}
+          animationType="slide"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Feedback for {selectedClass?.class_name}</Text>
+              <FlatList
+                data={feedback}
+                renderItem={renderFeedbackItem}
+                keyExtractor={(item) => item.id}
+              />
+              <TouchableOpacity style={styles.audioControlButton1} onPress={pauseAudio}>
+                <Text style={styles.audioControlButtonText1}>Pause</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
 
       {/* Bottom Navigation Buttons */}
@@ -103,26 +214,6 @@ const Files: React.FC<Props> = ({ setCurrentPage }) => {
           <Image source={require('../../assets/images/folder-open.png')} style={styles.buttonImage} />
         </TouchableOpacity>
       </View>
-
-      {/* Modal to display translation */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.translationText}>{selectedTranslation}</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -171,17 +262,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 5,
   },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContainer: {
+    width: '90%',
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  feedbackItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  feedbackText: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  audioText: {
+    fontSize: 12,
+    color: 'blue',
+    textDecorationLine: 'underline',
+  },
+  closeButton: {
+    backgroundColor: '#007BFF', // Customize the background color as needed
+    padding: 10,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginVertical: 5, // Space between buttons
+    borderWidth:0.5,
+    borderColor:'black',
+    shadowColor: '#000', // Color of the shadow
+    shadowOffset: { width: 0, height: 2 }, // Shadow offset
+    shadowOpacity: 0.25, // Opacity of the shadow
+    shadowRadius: 3.5, // Blur radius of the shadow
+    // Android shadow property
+    elevation: 5, // Elevation for Android devices
+  },
+  closeButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
   bottomButtonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 25,
-    position: 'absolute',
-    bottom: -90,
-    borderTopWidth: 2,
-    borderTopColor: 'black',
-    backgroundColor: 'white',
-    paddingVertical: 15,
+        justifyContent: 'space-between',
+        width: '100%',
+        paddingHorizontal: 40,
+        position: 'absolute',
+        bottom: -90,
+        borderTopWidth: 2,
+        borderTopColor: 'black',
+        backgroundColor: 'white',
+        paddingVertical: 10,
   },
   button: {
     width: 70,
@@ -202,33 +349,27 @@ const styles = StyleSheet.create({
     height: 25,
     resizeMode: 'contain',
   },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    width: 300,
-    alignItems: 'center',
-  },
-  translationText: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  closeButton: {
-    backgroundColor: 'black',
+  audioControlButton1: {
+    backgroundColor: '#80C4E9', // Customize the background color as needed
     padding: 10,
     borderRadius: 5,
+    alignItems: 'center',
+    marginVertical: 5, // Space between buttons
+    borderWidth:0.5,
+    borderColor:'black',
+    shadowColor: '#000', // Color of the shadow
+    shadowOffset: { width: 0, height: 2 }, // Shadow offset
+    shadowOpacity: 0.25, // Opacity of the shadow
+    shadowRadius: 3.5, // Blur radius of the shadow
+    // Android shadow property
+    elevation: 5, // Elevation for Android devices
   },
-  closeButtonText: {
-    color: 'white',
+  audioControlButtonText1: {
+    color: '#fff',
     fontSize: 16,
+    fontWeight: 'bold',
   },
+  
 });
 
 export default Files;

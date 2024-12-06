@@ -86,6 +86,10 @@ const CameraComponent: React.FC<Props> = ({ setCurrentPage }) => {
                     <TouchableOpacity style={styles.button1} onPress={handleUpload}>
                         <Text style={styles.buttonText}>Upload Image</Text>
                     </TouchableOpacity>
+                    {/* New button to open the camera */}
+                    <TouchableOpacity style={styles.button1} onPress={handleCapture}>
+                        <Text style={styles.buttonText}>Open Camera</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
             <View style={styles.bottomButtonContainer}>
