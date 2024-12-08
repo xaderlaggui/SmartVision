@@ -15,6 +15,7 @@ const Layout = () => {
 
 const styles = StyleSheet.create({
   container: {
+    zIndex:-1,
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',

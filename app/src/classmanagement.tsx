@@ -139,10 +139,11 @@ const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
     }
   
     try {
-      // Construct the feedback data object (no `id` field)
+      // Construct the feedback data object with feedback_audio
       const feedbackData = {
         student_id: selectedStudent.id,
         feedback_text: feedback,
+        feedback_audio: feedback, // Insert the same comment into feedback_audio
         class_id: selectedClass.id,
       };
   
@@ -166,7 +167,6 @@ const ClassManagement: React.FC<Props> = ({ setCurrentPage }) => {
       alert('Failed to submit feedback. Please try again.');
     }
   };
-  
 
   const renderClassItem = ({ item }: { item: Class }) => (
     <TouchableOpacity style={styles.classItem} onPress={() => handleClassClick(item)}>

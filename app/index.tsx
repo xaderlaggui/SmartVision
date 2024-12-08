@@ -18,7 +18,20 @@ const smartvisionImg = require('../assets/images/title.png');
 
 
 const App = () => {
-  const [currentPage, setCurrentPage] = useState<'home' | 'teacher' | 'personal' | 'login' |'login-student'|'classroom'| 'signup' | 'dashboard' | 'createclass'|'classmanagement'|'camera'| 'files'>('home');
+  const [currentPage, setCurrentPage] = useState
+  <'home' 
+  | 'teacher' 
+  | 'personal' 
+  | 'login' 
+  |'login-student'
+  |'classroom'
+  | 'signup' 
+  | 'dashboard' 
+  | 'createclass'
+  |'classmanagement'
+  |'camera'
+  | 'files'
+  >('home');
 
   // Animated value for shaking the image
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -114,7 +127,7 @@ const styles = StyleSheet.create({
     height: 250,
     resizeMode: 'contain',
     marginBottom: 0,
-    bottom: 0,
+    bottom: -20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.3,

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase'; // Import Supabase client
 import { Ionicons } from '@expo/vector-icons'; // You can install this package for icons
+import axios from 'axios'; // Import axios
 
 interface Props {
   setCurrentPage: (page: 'home' | 'teacher' | 'personal' | 'login' | 'signup') => void;
@@ -43,30 +44,35 @@ const SignupPage: React.FC<Props> = ({ setCurrentPage }) => {
       Alert.alert('Error', 'Please fill in all required fields.');
       return;
     }
-
+  
     if (!isPasswordValid(password)) {
       Alert.alert('Error', 'Password must contain at least one letter and one number.');
       return;
     }
-
+  
     const otp = generateOtp();
     setIsOtpSent(true);
-
+  
     try {
-      // Store OTP in the database
+      // Send OTP to the user's email via your backend service
+      const response = await axios.post('http://192.168.100.143:5000/send-otp', { email, otp });
+      console.log('Response:', response.data); // Log the response
+  
+      // Store OTP in the database (optional)
       const { error } = await supabase.from('otps').insert([
         { email, otp }
       ]);
-
+  
       if (error) {
         Alert.alert('Error', 'Failed to save OTP. Please try again.');
         setIsOtpSent(false);
         return;
       }
-
+  
       Alert.alert('Success', 'OTP has been sent to your email.');
     } catch (err) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      console.error('Error sending OTP:', err); // Log the error
+      Alert.alert('Error', 'Failed to send OTP. Please try again.');
       setIsOtpSent(false);
     }
   };

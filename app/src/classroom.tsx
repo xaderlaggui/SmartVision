@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { Platform } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 
 
 if (Platform.OS === 'android') {
@@ -26,6 +27,12 @@ interface Class {
   class_name: string;
   class_code: string;
 }
+interface FeedbackItem {
+  url: string;
+  text: string;
+  
+}
+
 
 interface Props {
   setCurrentPage: (page: 'home' | 'teacher' | 'personal' | 'login-student' | 'signup' | 'dashboard' | 'createclass' | 'classmanagement' | 'camera' | 'files') => void;
@@ -39,6 +46,7 @@ const Classroom: React.FC<Props> = ({ setCurrentPage }) => {
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [feedback, setFeedback] = useState<string[]>([]);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  
 
   useEffect(() => {
     const fetchUserSession = async () => {
@@ -144,7 +152,7 @@ const Classroom: React.FC<Props> = ({ setCurrentPage }) => {
     try {
       const { data, error } = await supabase
         .from('feedback')
-        .select('feedback_audio')
+        .select('feedback_audio, feedback_text') // Include feedback_text
         .eq('class_id', classId)
         .eq('student_id', user.id);
   
@@ -160,15 +168,15 @@ const Classroom: React.FC<Props> = ({ setCurrentPage }) => {
                   .getPublicUrl(fb.feedback_audio);
   
                 if (urlData?.publicUrl) {
-                  return urlData.publicUrl;
+                  return { url: urlData.publicUrl, text: fb.feedback_text }; // Return both URL and text
                 }
               }
               return null;
             })
           );
   
-          const filteredUrls = validUrls.filter((url): url is string => url !== null);
-          setFeedback(filteredUrls);
+          const filteredFeedback = validUrls.filter((item): item is FeedbackItem => item !== null);
+          setFeedback(filteredFeedback); // Set feedback to the new structure
         } else {
           setFeedback([]);
         }
@@ -204,10 +212,17 @@ const Classroom: React.FC<Props> = ({ setCurrentPage }) => {
   const pauseAudio = async () => {
     if (sound) {
       try {
-        await sound.pauseAsync();
+        await sound.pauseAsync(); // Pause the audio playback
       } catch (error) {
         console.error('Error pausing audio:', error);
       }
+    }
+    
+    // Stop any ongoing text-to-speech
+    try {
+      Speech.stop(); // Stop the text-to-speech
+    } catch (error) {
+      console.error('Error stopping speech:', error);
     }
   };
 
@@ -264,37 +279,33 @@ const Classroom: React.FC<Props> = ({ setCurrentPage }) => {
   <View style={styles.modalContainer}>
     <View style={styles.modalContent}>
       <Text style={styles.modalTitle}>
-        {selectedClass?.class_name || 'Class Details'}
+        {selectedClass?.class_name || 'Class Details'} Comments from Teacher:
       </Text>
       {feedback.length > 0 ? (
-        <FlatList
-          data={chunkArray(feedback, 3)} // Chunk the feedback array into groups of 3
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item, index }) => (
-            <View style={styles.feedbackRow}>
-              {item.map((feedbackUrl, i) => (
-                <TouchableOpacity
-                key={i}
-                onPress={() => playAudio(feedbackUrl)}
-                style={styles.feedbackButton}
-              >
-                <View style={styles.feedbackButtonContent}>
-                  <Text style={styles.feedbackButtonText}>Feedback {index * 3 + i + 1}</Text>
-                  <Ionicons name="play-circle-outline" size={24} color="#FFE31A" />
-                </View>
-              </TouchableOpacity>
-              
-              ))}
-            </View>
-          )}
-        />
-      ) : (
-        <Text>No feedback available for this class.</Text>
-      )}
-      <TouchableOpacity style={styles.audioControlButton1} onPress={pauseAudio}>
+  <FlatList
+  data={chunkArray(feedback, 3)} // Chunk the feedback array into groups of 3
+  keyExtractor={(item, index) => index.toString()} // This is not unique enough
+  renderItem={({ item, index }) => (
+    <View style={styles.feedbackRow}>
+      {item.map((feedbackItem, i) => (
+        <View key={`${feedbackItem.url}-${i}`}>
+          <TouchableOpacity
+            onPress={() => Speech.speak(feedbackItem.text)} // Text-to-speech functionality
+            style={styles.speechButton}
+          >
+            <Text style={styles.speechButtonText}>Activity: {index * 3 + i + 1}</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  )}
+/>
+) : (
+  <Text>No feedback available for this class.</Text>
+)}
+<TouchableOpacity style={styles.audioControlButton1} onPress={pauseAudio}>
   <Text style={styles.audioControlButtonText1}>Pause</Text>
 </TouchableOpacity>
-
 <TouchableOpacity style={styles.audioControlButton2} onPress={() => setModalVisible(false)}>
   <Text style={styles.audioControlButtonText2}>Close</Text>
 </TouchableOpacity>
@@ -403,7 +414,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
     
   },
   modalContent: {
@@ -411,7 +422,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 10,
     width: '80%',
-    maxHeight: '80%',
+    height:500,
     overflow: 'scroll',
     shadowColor: '#000', // Color of the shadow
     shadowOffset: { width: 0, height: 2 }, // Shadow offset
@@ -436,7 +447,6 @@ const styles = StyleSheet.create({
     
   },
   feedbackRow: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 15,
   },
@@ -445,7 +455,8 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 50,
     flex: 1, // Allow buttons to expand equally
-    marginHorizontal: 5, // Add space between buttons
+    marginHorizontal: 5, // Add space between buttons\
+    marginVertical:2,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'black',
@@ -469,10 +480,10 @@ const styles = StyleSheet.create({
   },
   audioControlButton1: {
     backgroundColor: '#80C4E9', // Customize the background color as needed
-    padding: 10,
+    padding: 5,
     borderRadius: 5,
     alignItems: 'center',
-    marginVertical: 5, // Space between buttons
+    marginVertical: 10, // Space between buttons
     borderWidth:0.5,
     borderColor:'black',
     shadowColor: '#000', // Color of the shadow
@@ -484,10 +495,10 @@ const styles = StyleSheet.create({
   },
   audioControlButton2: {
     backgroundColor: '#F1F0E8', // Customize the background color as needed
-    padding: 10,
+    padding: 5,
     borderRadius: 5,
     alignItems: 'center',
-    marginVertical: 5, // Space between buttons
+    marginVertical: 0, // Space between buttons
     borderWidth:0.5,
     borderColor:'black',
     shadowColor: '#000', // Color of the shadow
@@ -503,11 +514,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   audioControlButtonText2: {
-    color: '#black',
+    color: 'black',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  
+  speechButton: {
+    backgroundColor: '#FFD700', // Gold color for the button
+    padding: 13,
+    borderRadius: 5,
+    alignItems: 'center',
+    marginVertical:5,// Space between play button and speak button
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.5,
+    elevation: 5,
+    borderWidth:0.5,
+    borderColor:'white',
+  },
+  speechButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default Classroom;
